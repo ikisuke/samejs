@@ -137,9 +137,9 @@ async function audioDemoStart() {
   audioContext = new AudioContext({ sampleRate: sampleRate });
   console.log(audioContext);
 
-  var rawSab = RingBuffer.getStorageForCapacity(sampleRate * 2, Float32Array);
+  var rawSab = RingBuffer.getStorageForCapacity(sampleRate * 4, Float32Array);
   var denoisedSab = RingBuffer.getStorageForCapacity(
-    sampleRate * 2,
+    sampleRate * 4,
     Float32Array
   );
 

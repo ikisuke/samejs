@@ -9,9 +9,9 @@ To get WASM package and model:
 git clone https://github.com/Rikorose/DeepFilterNet/
 cd DeepFilterNet
 bash scripts/build_wasm_package.sh
-cp -r libdf/pkg ../samejs/deepfilternet3/wasm_worklet_worker_sharedarraybuffer/
-cp models/DeepFilterNet3_onnx.tar.gz ../samejs/deepfilternet3/wasm_worklet_worker_sharedarraybuffer/
-cd ../samejs/deepfilternet3/wasm_worklet_worker_sharedarraybuffer/
+cp -r libdf/pkg ../samejs/deepfilternet3/wasm_worker_sharedarraybuffer/
+cp models/DeepFilterNet3_onnx.tar.gz ../samejs/deepfilternet3/wasm_worker_sharedarraybuffer/
+cd ../samejs/deepfilternet3/wasm_worker_sharedarraybuffer/
 ```
 
 To run demo:

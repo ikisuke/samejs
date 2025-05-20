@@ -3,6 +3,8 @@ const exports = {};
 
 let frame_length;
 let df_model;
+let base_url;
+let running = false;
 
 // Read some float32 pcm from the queue, convert to int16 pcm, and push it to
 // our global queue.
@@ -59,16 +61,16 @@ onmessage = async (e) => {
       frame_length = wasm_bindgen.df_get_frame_length(df_model)
       this.rawStorage = new Float32Array(frame_length);
 
-      interval = setInterval(readFromQueue, 0);
+      running = true;
       postMessage({ type: "SETUP_AWP" })
 
-      // while (true){
-      //   await readFromQueue();
-      // }
+      while (running) {
+        await readFromQueue();
+      }
       break;
     }
     case "stop": {
-      clearInterval(interval);
+      running = false;
       break;
     }
     default: {

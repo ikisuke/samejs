@@ -35,9 +35,7 @@ class RandomAudioProcessor extends AudioWorkletProcessor {
           const channelCount = Math.min(input.length, output.length);
     
           for (let channelNum = 0; channelNum < channelCount; channelNum++) {
-            this.planarBuffer.forEach((sample, i) => {
-              output[channelNum][i] = sample;
-            });
+            output[channelNum].set(this.planarBuffer);
           }
         };
     } else {
