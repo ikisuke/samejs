@@ -13,6 +13,7 @@ ort.env.wasm.numThreads = 1;
 ort.env.logLevel = 'verbose';
 
 let base_url;
+let running = false;
 
 // Read some float32 pcm from the queue, convert to int16 pcm, and push it to
 // our global queue.
@@ -93,10 +94,6 @@ onmessage = async (e) => {
       this.states = new ort.Tensor("float32", new Array(state_size).fill(0), [state_size]);
       this.atten_lim_db = new ort.Tensor("float32", new Array(1).fill(0), [1]);
 
-      // States
-      this.states = new ort.Tensor("float32", new Array(state_size).fill(0), [state_size]);
-      this.atten_lim_db = new ort.Tensor("float32", new Array(1).fill(0), [1]);
-
       // init run for onnx
       const input_frame = new ort.Tensor("float32", 
         this.rawStorage.subarray(0, hop_size), [hop_size]
@@ -109,15 +106,15 @@ onmessage = async (e) => {
 
       postMessage(0);
 
-      // interval = setInterval(readFromQueue, 0);
+      running = true;
 
-      while (true){
+      while (running){
         await readFromQueue();
       }
       break;
     }
     case "stop": {
-      clearInterval(interval);
+      running = false;
       break;
     }
     default: {
