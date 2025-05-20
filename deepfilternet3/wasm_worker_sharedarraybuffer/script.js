@@ -4,16 +4,27 @@ let audioContext = null;
 let sampleRate = 48000;
 let worker;
 let onnx_path = './denoiser_model.ort'
+let rawAnalyser;
+let denoisedAnalyser;
+let rawCanvasCtx;
+let denoisedCanvasCtx;
 
 window.addEventListener("load", (event) => {
   document.getElementById("toggle").addEventListener("click", toggleSound);
 
-  gainRange = document.getElementById("gain");  
+  gainRange = document.getElementById("gain");
   gainRange.oninput = () => {
     gainNode.gain.value = gainRange.value;
   };
-  
+
   gainRange.disabled = true;
+
+  const rawCanvas = document.getElementById("raw");
+  const denoisedCanvas = document.getElementById("denoised");
+  if (rawCanvas && denoisedCanvas) {
+    rawCanvasCtx = rawCanvas.getContext("2d");
+    denoisedCanvasCtx = denoisedCanvas.getContext("2d");
+  }
 });
 
 async function toggleSound(event) {
@@ -95,8 +106,9 @@ async function setupWebAudio(rawSab, denoisedSab) {
       audioContext.audioWorklet.addModule(e)
         .then(() => getLiveAudio(audioContext))
         .then((liveIn) => {
-            // After the resolution of module loading, an AudioWorkletNode can be constructed.
-            let audioProcesser = new AudioWorkletNode(audioContext, 'random-audio-processor', 
+            rawAnalyser = audioContext.createAnalyser();
+            denoisedAnalyser = audioContext.createAnalyser();
+            let audioProcesser = new AudioWorkletNode(audioContext, 'random-audio-processor',
                 {
                   processorOptions: {
                     rawSab: rawSab,
@@ -104,8 +116,9 @@ async function setupWebAudio(rawSab, denoisedSab) {
                   }
                 }
             )
-            // AudioWorkletNode can be interoperable with other native AudioNodes.
-            liveIn.connect(audioProcesser).connect(gainNode).connect(audioContext.destination)
+
+            liveIn.connect(rawAnalyser).connect(audioProcesser).connect(denoisedAnalyser).connect(gainNode).connect(audioContext.destination)
+            draw();
         })
         .catch(e => console.error(e))
   });
@@ -125,4 +138,44 @@ function getLiveAudio(audioContext) {
           audio: true
       })
       .then(stream => audioContext.createMediaStreamSource(stream))
+}
+
+function drawWaveform(ctx, analyser) {
+  if (!ctx || !analyser) return;
+  const WIDTH = ctx.canvas.width;
+  const HEIGHT = ctx.canvas.height;
+  const bufferLength = analyser.fftSize;
+  const dataArray = new Uint8Array(bufferLength);
+
+  ctx.clearRect(0, 0, WIDTH, HEIGHT);
+  analyser.getByteTimeDomainData(dataArray);
+
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgb(0, 0, 0)';
+  ctx.beginPath();
+
+  const sliceWidth = WIDTH / bufferLength;
+  let x = 0;
+
+  for (let i = 0; i < bufferLength; i++) {
+    const v = dataArray[i] / 128.0;
+    const y = v * HEIGHT / 2;
+
+    if (i === 0) {
+      ctx.moveTo(x, y);
+    } else {
+      ctx.lineTo(x, y);
+    }
+
+    x += sliceWidth;
+  }
+
+  ctx.lineTo(WIDTH, HEIGHT / 2);
+  ctx.stroke();
+}
+
+function draw() {
+  requestAnimationFrame(draw);
+  drawWaveform(rawCanvasCtx, rawAnalyser);
+  drawWaveform(denoisedCanvasCtx, denoisedAnalyser);
 }
