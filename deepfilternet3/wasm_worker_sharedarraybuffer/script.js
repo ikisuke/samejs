@@ -3,7 +3,7 @@ let gainRange;
 let audioContext = null;
 let sampleRate = 48000;
 let worker;
-let onnx_path = './denoiser_model.ort'
+let onnx_path = "./denoiser_model.ort";
 let rawAnalyser;
 let denoisedAnalyser;
 let rawCanvasCtx;
@@ -34,7 +34,7 @@ async function toggleSound(event) {
     gainRange.disabled = false;
   } else {
     gainRange.disabled = true;
-    worker.postMessage({"command": "stop"})
+    worker.postMessage({ command: "stop" });
 
     await audioContext.close();
     audioContext = null;
@@ -42,25 +42,26 @@ async function toggleSound(event) {
 }
 
 async function setupWorker(rawSab, denoisedSab) {
-  // The Web Worker can receive two commands: 
+  // The Web Worker can receive two commands:
   // - on "init", it starts periodically reading from the queue and
   //  accumulating audio data.
   // - on "stop", it takes all this accumulated audio data, converts to PCM16
   // instead of float32 and turns the stream into a WAV file, sending it back
   // to the main thread to offer it as download.
 
-  URLFromFiles(['worker.js', 'ringbuffer.js']).then((e) => {
-      worker = new Worker(e);
+  URLFromFiles(["worker.js", "ringbuffer.js"]).then((e) => {
+    worker = new Worker(e);
 
-      worker.onmessage = (e) => {
-        const { type } = e.data;
+    worker.onmessage = (e) => {
+      const { type } = e.data;
 
-        switch (type) {
-          case "FETCH_WASM": {
-            fetch("/pkg/df_bg.wasm")
-              .then((response) => response.arrayBuffer())
-              .then((bytes) => {
-                fetch('/DeepFilterNet3_onnx.tar.gz').then((response) => response.arrayBuffer())
+      switch (type) {
+        case "FETCH_WASM": {
+          fetch("/pkg/df_bg.wasm")
+            .then((response) => response.arrayBuffer())
+            .then((bytes) => {
+              fetch("/DeepFilterNet3_onnx.tar.gz")
+                .then((response) => response.arrayBuffer())
                 .then((model_bytes) => {
                   worker.postMessage({
                     command: "init",
@@ -68,76 +69,89 @@ async function setupWorker(rawSab, denoisedSab) {
                     base_url: document.baseURI,
                     model_bytes: model_bytes,
                     rawSab: rawSab,
-                    denoisedSab: denoisedSab
+                    denoisedSab: denoisedSab,
                   });
                 });
-              });
-              console.log("fetching...")
-            break;
-          }
-          case "SETUP_AWP": {
-            setupWebAudio(rawSab, denoisedSab);
-          }
-          default: {
-            break;
-          }
+            });
+          console.log("fetching...");
+          break;
+        }
+        case "SETUP_AWP": {
+          setupWebAudio(rawSab, denoisedSab);
+        }
+        default: {
+          break;
         }
       }
-      
-      // worker.postMessage({
-      //   command: "init", 
-        // rawSab: rawSab,
-        // denoisedSab: denoisedSab,
-      //   sampleRate: sampleRate,
-      //   base_url: document.baseURI,
-      //   onnx_path: onnx_path,
-      //   hop_size: 480,
-      //   state_size: 45304
-      // });
+    };
+
+    // worker.postMessage({
+    //   command: "init",
+    // rawSab: rawSab,
+    // denoisedSab: denoisedSab,
+    //   sampleRate: sampleRate,
+    //   base_url: document.baseURI,
+    //   onnx_path: onnx_path,
+    //   hop_size: 480,
+    //   state_size: 45304
+    // });
   });
-};
+}
 
 async function setupWebAudio(rawSab, denoisedSab) {
   audioContext.resume();
 
-  gainNode = audioContext.createGain()
+  gainNode = audioContext.createGain();
 
-  URLFromFiles(['audio-processor.js', 'ringbuffer.js']).then((e) => {
-      audioContext.audioWorklet.addModule(e)
-        .then(() => getLiveAudio(audioContext))
-        .then((liveIn) => {
-            rawAnalyser = audioContext.createAnalyser();
-            denoisedAnalyser = audioContext.createAnalyser();
-            let audioProcesser = new AudioWorkletNode(audioContext, 'random-audio-processor',
-                {
-                  processorOptions: {
-                    rawSab: rawSab,
-                    denoisedSab: denoisedSab
-                  }
-                }
-            )
+  URLFromFiles(["audio-processor.js", "ringbuffer.js"]).then((e) => {
+    audioContext.audioWorklet
+      .addModule(e)
+      .then(() => getLiveAudio(audioContext))
+      .then((liveIn) => {
+        rawAnalyser = audioContext.createAnalyser();
+        denoisedAnalyser = audioContext.createAnalyser();
+        let audioProcesser = new AudioWorkletNode(
+          audioContext,
+          "random-audio-processor",
+          {
+            processorOptions: {
+              rawSab: rawSab,
+              denoisedSab: denoisedSab,
+            },
+          }
+        );
 
-            liveIn.connect(rawAnalyser).connect(audioProcesser).connect(denoisedAnalyser).connect(gainNode).connect(audioContext.destination)
-            draw();
-        })
-        .catch(e => console.error(e))
+        liveIn
+          .connect(rawAnalyser)
+          .connect(audioProcesser)
+          .connect(denoisedAnalyser)
+          .connect(gainNode)
+          .connect(audioContext.destination);
+        draw();
+      })
+      .catch((e) => console.error(e));
   });
 }
 
 async function audioDemoStart() {
-  audioContext = new AudioContext({sampleRate: sampleRate})
+  audioContext = new AudioContext({ sampleRate: sampleRate });
+  console.log(audioContext);
 
   var rawSab = RingBuffer.getStorageForCapacity(sampleRate * 2, Float32Array);
-  var denoisedSab = RingBuffer.getStorageForCapacity(sampleRate * 2, Float32Array);
+  var denoisedSab = RingBuffer.getStorageForCapacity(
+    sampleRate * 2,
+    Float32Array
+  );
 
   setupWorker(rawSab, denoisedSab);
 }
 
 function getLiveAudio(audioContext) {
-  return navigator.mediaDevices.getUserMedia({
-          audio: true
-      })
-      .then(stream => audioContext.createMediaStreamSource(stream))
+  return navigator.mediaDevices
+    .getUserMedia({
+      audio: true,
+    })
+    .then((stream) => audioContext.createMediaStreamSource(stream));
 }
 
 function drawWaveform(ctx, analyser) {
@@ -151,7 +165,7 @@ function drawWaveform(ctx, analyser) {
   analyser.getByteTimeDomainData(dataArray);
 
   ctx.lineWidth = 2;
-  ctx.strokeStyle = 'rgb(0, 0, 0)';
+  ctx.strokeStyle = "rgb(0, 0, 0)";
   ctx.beginPath();
 
   const sliceWidth = WIDTH / bufferLength;
@@ -159,7 +173,7 @@ function drawWaveform(ctx, analyser) {
 
   for (let i = 0; i < bufferLength; i++) {
     const v = dataArray[i] / 128.0;
-    const y = v * HEIGHT / 2;
+    const y = (v * HEIGHT) / 2;
 
     if (i === 0) {
       ctx.moveTo(x, y);
