@@ -1,0 +1,6 @@
+name = "static-asset-worker"
+main = "index.js"
+compatibility_date = "2025-05-21"
+
+[site]
+bucket = "public" 

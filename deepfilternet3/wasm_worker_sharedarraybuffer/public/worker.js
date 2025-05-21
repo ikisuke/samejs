@@ -14,12 +14,14 @@ async function readFromQueue() {
   }
 
   const samples_read = this._audio_reader.dequeue(this.rawStorage);
-  let input_frame = this.rawStorage.subarray(0, samples_read)
-  
+  let input_frame = this.rawStorage.subarray(0, samples_read);
+
   let output_frame = wasm_bindgen.df_process_frame(df_model, input_frame);
 
   if (this._audio_writer.enqueue(output_frame) !== frame_length) {
-      console.log("worker underrun: the audioworklet doesn't dequeue fast enough!");
+    console.log(
+      "worker underrun: the audioworklet doesn't dequeue fast enough!"
+    );
   }
 
   return samples_read;
@@ -29,7 +31,7 @@ function linspace(startValue, stopValue, cardinality) {
   var arr = [];
   var step = (stopValue - startValue) / (cardinality - 1);
   for (var i = 0; i < cardinality; i++) {
-    arr.push(startValue + (step * i));
+    arr.push(startValue + step * i);
   }
   return arr;
 }
@@ -43,26 +45,26 @@ onmessage = async (e) => {
 
       this._audio_writer = new exports.AudioWriter(
         new RingBuffer(e.data.denoisedSab, Float32Array)
-      )
+      );
       // A smaller staging array to copy the audio samples from, before conversion
       // to uint16. It's size is 4 times less than the 1 second worth of data
       // that the ring buffer can hold, so it's 250ms, allowing to not make
       // deadlines:
       // staging buffer size = ring buffer size / sizeof(float32) / stereo / 4
 
-      base_url = e.data.base_url
-      importScripts(base_url + '/pkg/df.js');
+      base_url = e.data.base_url;
+      importScripts(base_url + "pkg/df.js");
       wasm_bindgen.initSync(e.data.bytes);
 
       const uint8Array = new Uint8Array(e.data.model_bytes);
       df_model = wasm_bindgen.df_create(uint8Array, 100.0);
-      console.log('df_model loaded...');
+      console.log("df_model loaded...");
 
-      frame_length = wasm_bindgen.df_get_frame_length(df_model)
+      frame_length = wasm_bindgen.df_get_frame_length(df_model);
       this.rawStorage = new Float32Array(frame_length);
 
       running = true;
-      postMessage({ type: "SETUP_AWP" })
+      postMessage({ type: "SETUP_AWP" });
 
       while (running) {
         await readFromQueue();
@@ -74,7 +76,7 @@ onmessage = async (e) => {
       break;
     }
     default: {
-      console.log(e.data)
+      console.log(e.data);
       throw Error("Case not handled");
     }
   }
