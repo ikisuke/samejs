@@ -103,7 +103,7 @@ async function setupWebAudio(rawSab, denoisedSab) {
 
   gainNode = audioContext.createGain();
 
-  URLFromFiles(["audio-processor.js", "ringbuffer.js"]).then((e) => {
+  URLFromFiles(["public/audio-processor.js", "ringbuffer.js"]).then((e) => {
     audioContext.audioWorklet
       .addModule(e)
       .then(() => getLiveAudio(audioContext))
