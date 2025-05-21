@@ -71,8 +71,10 @@ async function setupWorker(rawSab, denoisedSab) {
                     rawSab: rawSab,
                     denoisedSab: denoisedSab,
                   });
-                });
-            });
+                })
+                .catch((e) => console.error(e));
+            })
+            .catch((e) => console.error(e));
           console.log("fetching...");
           break;
         }
