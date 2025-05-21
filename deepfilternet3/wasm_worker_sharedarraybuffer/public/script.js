@@ -57,7 +57,7 @@ async function setupWorker(rawSab, denoisedSab) {
 
       switch (type) {
         case "FETCH_WASM": {
-          fetch("/pkg/df_bg.wasm")
+          fetch("/df_bg.wasm")
             .then((response) => response.arrayBuffer())
             .then((bytes) => {
               fetch("/DeepFilterNet3_onnx.tar.gz")
