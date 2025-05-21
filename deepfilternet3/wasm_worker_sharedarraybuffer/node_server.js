@@ -1,64 +1,111 @@
-const http = require("http"),
-  url = require("url"),
-  path = require("path"),
-  fs = require("fs"),
-  port = process.argv[2] || 8080,
-  mimeTypes = {
-    html: "text/html",
-    jpeg: "image/jpeg",
-    jpg: "image/jpeg",
-    png: "image/png",
-    js: "text/javascript",
-    wasm: "application/wasm",
-    css: "text/css",
-  };
+import {
+  getAssetFromKV,
+  mapRequestToAsset,
+} from "@cloudflare/kv-asset-handler";
 
-http
-  .createServer(function (request, response) {
-    const uri = url.parse(request.url).pathname;
-    let filename = path.join(process.cwd(), uri);
+// 元の mimeTypes 定義。kv-asset-handler が適切な Content-Type を設定することが多いが、
+// .wasm のように特定のタイプを保証したい場合に役立つ可能性がある。
+const mimeTypes = {
+  html: "text/html",
+  jpeg: "image/jpeg",
+  jpg: "image/jpeg",
+  png: "image/png",
+  js: "text/javascript",
+  wasm: "application/wasm", // .wasm ファイルは application/wasm で提供されることが重要
+  css: "text/css",
+};
 
-    fs.exists(filename, function (exists) {
-      if (!exists) {
-        response.writeHead(404, { "Content-Type": "text/plain" });
-        response.write("404 Not Found\n");
-        response.end();
-        return;
-      }
+/**
+ * The DEBUG flag will do two things:
+ * 1. Return readable error messages rather than opaque error pages
+ * 2. Serve index.html for / requests (instead of blank page)
+ */
+const DEBUG = false; // 本番環境では false に設定
 
-      if (fs.statSync(filename).isDirectory()) filename += "/index.html";
+addEventListener("fetch", (event) => {
+  try {
+    event.respondWith(handleEvent(event));
+  } catch (e) {
+    if (DEBUG) {
+      return event.respondWith(
+        new Response(e.message || e.toString(), {
+          status: 500,
+        })
+      );
+    }
+    event.respondWith(new Response("Internal Server Error", { status: 500 }));
+  }
+});
 
-      fs.readFile(filename, "binary", function (err, file) {
-        if (err) {
-          response.writeHead(500, {
-            "Content-Type": "text/plain",
-            "Cross-Origin-Opener-Policy": "same-origin unsafe-allow-outgoing",
-          });
-          response.write(err + "\n");
-          response.end();
-          return;
-        }
+async function handleEvent(event) {
+  const url = new URL(event.request.url);
+  let options = {};
 
-        let mimeType = mimeTypes[filename.split(".").pop()];
+  // ASSET_NAMESPACE と ASSET_MANIFEST は wrangler によって提供されるグローバル変数です。
+  // これらが getAssetFromKV に渡されるようにオプションを設定します。
+  options.ASSET_NAMESPACE = globalThis.__STATIC_CONTENT; // KV Namespace
+  options.ASSET_MANIFEST = globalThis.__STATIC_CONTENT_MANIFEST; // Manifest JSON
 
-        if (!mimeType) {
-          mimeType = "text/plain";
-        }
+  try {
+    const page = await getAssetFromKV(event, options);
 
-        response.writeHead(200, {
-          "Content-Type": mimeType,
-          "Cross-Origin-Opener-Policy": "same-origin",
-          "Cross-Origin-Embedder-Policy": "require-corp",
-        });
-        response.write(file, "binary");
-        response.end();
-      });
+    // レスポンスヘッダーをコピーして新しい Headers オブジェクトを作成
+    const newHeaders = new Headers(page.headers);
+
+    // Cross-Originポリシーヘッダーを追加
+    newHeaders.set("Cross-Origin-Opener-Policy", "same-origin");
+    newHeaders.set("Cross-Origin-Embedder-Policy", "require-corp");
+
+    // 元のコードにあったMIMEタイプ設定を参考に、特定の拡張子でContent-Typeを上書きする場合
+    // (通常、kv-asset-handlerが適切に設定しますが、.wasmなどを確実に指定したい場合)
+    const pathname = url.pathname;
+    const fileExtension = pathname.split(".").pop();
+    if (fileExtension && mimeTypes[fileExtension.toLowerCase()]) {
+      newHeaders.set("Content-Type", mimeTypes[fileExtension.toLowerCase()]);
+    }
+
+    return new Response(page.body, {
+      ...page, // status, statusText などをコピー
+      headers: newHeaders,
     });
-  })
-  .listen(parseInt(port, 10));
+  } catch (e) {
+    // エラーが発生した場合、404.html を提供しようと試みる (存在すれば)
+    if (!DEBUG) {
+      try {
+        const notFoundResponse = await getAssetFromKV(event, {
+          mapRequestToAsset: (req) =>
+            new Request(`${new URL(req.url).origin}/404.html`, req),
+          ASSET_NAMESPACE: globalThis.__STATIC_CONTENT,
+          ASSET_MANIFEST: globalThis.__STATIC_CONTENT_MANIFEST,
+        });
 
-console.log(
-  "Static file server running at\n  => https://localhost:" +
-    port +
-    "/\nCTRL + C to shutdown"
-);
+        const newHeaders = new Headers(notFoundResponse.headers);
+        newHeaders.set("Cross-Origin-Opener-Policy", "same-origin");
+        newHeaders.set("Cross-Origin-Embedder-Policy", "require-corp");
+        // 404.html なので Content-Type を text/html に設定
+        newHeaders.set("Content-Type", "text/html; charset=utf-8");
+
+        return new Response(notFoundResponse.body, {
+          ...notFoundResponse, // status, statusText
+          status: 404, // ステータスコードを404に
+          headers: newHeaders,
+        });
+      } catch (e) {} // 404.html がなければ、最終的なエラーレスポンスへ
+    }
+
+    return new Response(e.message || e.toString(), { status: 500 });
+  }
+}
+
+// 元の http.createServer や console.log の部分は Cloudflare Workers では不要です。
+// // http
+// //   .createServer(function (request, response) {
+// //     ...
+// //   })
+// //   .listen(parseInt(port, 10));
+
+// // console.log(
+// //   "Static file server running at\\n  => http://localhost:" +
+// //     port +
+// //     "/\\nCTRL + C to shutdown"
+// // );
