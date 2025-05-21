@@ -1,0 +1,3 @@
+[submodule "deepfilternet3/wasm_worker_sharedarraybuffer/DeepFilterNet"]
+	path = deepfilternet3/wasm_worker_sharedarraybuffer/DeepFilterNet
+	url = https://github.com/Rikorose/DeepFilterNet
